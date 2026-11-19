@@ -58,7 +58,7 @@ Résultat dans `dist\` : l'installeur, le zip portable et `SHA256SUMS.txt`. La v
 
 ## Intégration continue et versions
 
-- **CI** (`.github/workflows/ci.yml`, à chaque push ou pull request sur `main`) : compilation avec les avertissements traités comme des erreurs, construction de l'installeur, puis analyse [SonarQube Cloud](https://sonarcloud.io) si le secret `SONAR_TOKEN` est défini.
+- **CI** (`.github/workflows/ci.yml`, à chaque push ou pull request sur `main`) : compilation avec les avertissements traités comme des erreurs, construction de l'installeur. Le code est aussi analysé par [SonarQube Cloud](https://sonarcloud.io/project/overview?id=Jeremie-pires_taskbar-mediaplayer) (analyse automatique, hors CI).
 - **Publication** (`.github/workflows/release.yml`) : pousser un tag `vX.Y.Z` (ou `vX.Y.Z-rc.N` pour une préversion) publie une release GitHub avec l'installeur, le zip portable et `SHA256SUMS.txt`. Le tag doit correspondre à la version de `CMakeLists.txt` ; le message d'un tag annoté sert de notes de version.
 
 ```bat

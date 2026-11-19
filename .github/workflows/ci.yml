@@ -38,34 +38,3 @@ jobs:
           name: taskbar-mediaplayer-${{ github.sha }}
           path: dist/
           retention-days: 14
-
-  sonarqube:
-    name: SonarQube Cloud analysis
-    runs-on: windows-2025
-    env:
-      BUILD_WRAPPER_OUT_DIR: build_wrapper_output
-      # Empty on pull requests from forks, which get no secrets: the analysis is then skipped.
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    steps:
-      - name: Checkout
-        if: env.SONAR_TOKEN != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0  # full history: better new-code detection and blame
-
-      - name: Install Build Wrapper
-        if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
-
-      - name: Build under Build Wrapper
-        if: env.SONAR_TOKEN != ''
-        run: |
-          cmake -S . -B build -A x64
-          build-wrapper-win-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build --config Release
-
-      - name: SonarQube scan
-        if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
-        with:
-          args: >
-            --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
