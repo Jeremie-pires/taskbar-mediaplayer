@@ -40,7 +40,7 @@ Avec une petite barre des tâches (petites icônes), titre et artiste s'affichen
 
 ## Compiler
 
-Prérequis : Visual Studio 2022 (charge de travail « Développement desktop en C++ », SDK Windows 10/11) et CMake 3.21+.
+Prérequis : Visual Studio 2022 ou plus récent (charge de travail « Développement desktop en C++ », SDK Windows 10/11) et CMake 3.21+.
 
 ```bat
 build.bat

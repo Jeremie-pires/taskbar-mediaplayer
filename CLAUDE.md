@@ -2,11 +2,11 @@
 Media player strip on the Windows taskbar (artwork, title, artist, previous / play / next), standalone Win32 EXE.
 
 ## Stack
-- C++20, Win32, GDI+, C++/WinRT (Windows.Media.Control), MSVC (VS 2022), CMake 3.21+.
+- C++20, Win32, GDI+, C++/WinRT (Windows.Media.Control), MSVC (VS 2022 or later), CMake 3.21+.
 - Windows SDK 10.0.26100 or later (provides the C++/WinRT headers). No third-party libraries.
 
 ## Commands
-- Build: `build.bat` (or `cmake -S . -B build -G "Visual Studio 17 2022" -A x64` then `cmake --build build --config Release`).
+- Build: `build.bat` (or `cmake -S . -B build -A x64` then `cmake --build build --config Release`).
 - Output: `build\Release\taskbar-mediaplayer.exe`.
 - Installer and portable zip: `powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1` (needs Inno Setup 6+), output in `dist\`.
 - Release: push a tag `vX.Y.Z` matching `project(... VERSION)` in `CMakeLists.txt`; `.github/workflows/release.yml` publishes it.
