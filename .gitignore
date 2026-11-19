@@ -1,0 +1,16 @@
+# Build output (CMake and the legacy Visual Studio project)
+build/
+dist/
+out/
+bin/
+obj/
+
+# Visual Studio / IDE state
+.vs/
+.vscode/
+*.user
+*.suo
+*.aps
+
+# Local Claude Code settings
+.claude/settings.local.json
