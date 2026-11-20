@@ -3,8 +3,19 @@
 #include "app.h"
 
 #include <algorithm>
+#include <string>
 
 namespace {
+
+constexpr wchar_t kRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+constexpr wchar_t kRunValue[] = L"TaskbarMediaPlayer";
+constexpr wchar_t kLegacyRunValue[] = L"MusicLounge";
+
+std::wstring RunCommand() {
+    wchar_t p[MAX_PATH];
+    DWORD n = GetModuleFileNameW(nullptr, p, MAX_PATH);
+    return L"\"" + std::wstring(p, n) + L"\"";
+}
 
 DWORD ReadDword(const wchar_t* name, DWORD fallback) {
     DWORD v = 0, size = sizeof(v);
@@ -78,4 +89,32 @@ void SaveSettings(const Settings& s) {
     WriteDword(key, L"HideWhenNoMedia", s.hideWhenNoMedia);
     WriteDword(key, L"HideFullscreen", s.hideFullscreen);
     RegCloseKey(key);
+}
+
+bool AutostartEnabled() {
+    wchar_t buf[MAX_PATH + 8];
+    DWORD size = sizeof(buf);
+    if (RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, buf, &size) != ERROR_SUCCESS) return false;
+    return _wcsicmp(buf, RunCommand().c_str()) == 0;
+}
+
+void SetAutostart(bool on) {
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
+    if (on) {
+        const std::wstring v = RunCommand();
+        RegSetValueExW(key, kRunValue, 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
+                       (DWORD)((v.size() + 1) * sizeof(wchar_t)));
+    } else {
+        RegDeleteValueW(key, kRunValue);
+    }
+    RegCloseKey(key);
+}
+
+void MigrateLegacyAutostart() {
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
+    const bool had = RegDeleteValueW(key, kLegacyRunValue) == ERROR_SUCCESS;
+    RegCloseKey(key);
+    if (had) SetAutostart(true);
 }

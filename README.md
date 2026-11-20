@@ -13,10 +13,10 @@ Un mini-lecteur dans la barre des tâches Windows : pochette, titre, artiste et 
 
 ## Utilisation
 
-1. Lancer `taskbar-mediaplayer.exe`. La bande apparaît dans la barre des tâches, avec une icône ♪ dans la zone de notification.
+1. Lancer `taskbar-mediaplayer.exe`. La bande apparaît dans la barre des tâches.
 2. **Clic gauche** sur les boutons : précédent, lecture / pause, suivant. **Molette** : volume.
-3. **Clic droit** sur la bande ou sur l'icône ♪ : menu (lecture, *Paramètres…*, *Démarrer avec Windows*, *Quitter*).
-4. Relancer l'exe alors qu'il tourne déjà ouvre les paramètres.
+3. **Clic droit** sur la bande : menu (lecture, *Paramètres…*, *Démarrer avec Windows*, *Quitter*).
+4. Relancer l'exe alors qu'il tourne déjà ouvre les paramètres, qui proposent aussi *Démarrer avec Windows* et *Quitter* : c'est l'accès quand la bande est masquée.
 
 ### Paramètres
 
@@ -31,6 +31,7 @@ Chaque changement s'applique tout de suite.
 | Masquer après une pause de | Cache la bande après ce délai sans lecture. |
 | Masquer quand rien ne joue | Cache la bande sans session média. |
 | Masquer pendant un plein écran | Cache la bande quand l'application au premier plan couvre l'écran de la barre des tâches. |
+| Démarrer avec Windows | Lance l'appli à l'ouverture de session. |
 
 La barre de progression du mode *Large* utilise la position que le lecteur publie à Windows : elle n'apparaît que si le lecteur en publie une, et un clic ou un glisser déplace la lecture seulement si le lecteur l'accepte.
 
@@ -70,7 +71,7 @@ git push origin v2.0.0
 
 | Fichier | Rôle |
 |---|---|
-| `src/main.cpp` | Fenêtre cachée propriétaire de l'appli : tick d'une seconde, menu, icône de notification, `TaskbarCreated` (redémarrage d'Explorer), `--quit`. |
+| `src/main.cpp` | Fenêtre cachée propriétaire de l'appli : tick d'une seconde, menu, `TaskbarCreated` (redémarrage d'Explorer), `--quit`. |
 | `src/widget.cpp` | La bande : fenêtre *layered* enfant de `Shell_TrayWnd`, dessinée avec GDI+, placée à gauche de `TrayNotifyWnd`. Sous Windows 10, réduit `ReBarWindow32` pour que les boutons de tâches ne passent pas dessous. |
 | `src/media.cpp` | API média de Windows (GSMTC, C++/WinRT) sur un thread dédié ; les commandes visent le lecteur affiché. Le thread de l'interface ne bloque jamais (Explorer l'attend, la bande étant enfant de la barre des tâches). |
 | `src/icons.cpp` | Icônes vectorielles ([Phosphor](https://phosphoricons.com), graisse *fill*, licence MIT) gardées en données de chemin SVG et dessinées avec GDI+. |

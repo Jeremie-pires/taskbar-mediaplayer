@@ -28,3 +28,9 @@ struct Settings {
 void MigrateLegacySettings();
 Settings LoadSettings();
 void SaveSettings(const Settings& s);
+
+// Start with Windows: a value under HKCU\...\CurrentVersion\Run that runs this exe.
+bool AutostartEnabled();
+void SetAutostart(bool on);
+// An autostart entry left by the old name (Music Lounge) is replaced by one for this exe.
+void MigrateLegacyAutostart();

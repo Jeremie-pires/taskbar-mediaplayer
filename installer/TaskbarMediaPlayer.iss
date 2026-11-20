@@ -1,10 +1,10 @@
 ﻿; Inno Setup script for Taskbar Media Player (https://jrsoftware.org/isinfo.php).
 ; Per-user install, no administrator rights: installs to %LOCALAPPDATA%\Programs and registers an
 ; uninstaller in Settings > Apps.
-; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=2.0.0 installer\TaskbarMediaPlayer.iss).
+; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=2.1.0 installer\TaskbarMediaPlayer.iss).
 
 #ifndef AppVersion
-  #define AppVersion "2.0.0"
+  #define AppVersion "2.1.0"
 #endif
 #define Root ".."
 #define AppExe "taskbar-mediaplayer.exe"

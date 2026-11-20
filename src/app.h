@@ -14,7 +14,6 @@ inline constexpr UINT WM_MEDIA_CHANGED = WM_APP + 1;   // media thread: a new sn
 inline constexpr UINT WM_SETTINGS_SAVED = WM_APP + 2;  // settings dialog: new values are in the registry
 inline constexpr UINT WM_SHOW_MENU = WM_APP + 3;       // widget: right click
 inline constexpr UINT WM_SHOW_SETTINGS = WM_APP + 4;   // widget: settings button
-inline constexpr UINT WM_TRAY = WM_APP + 5;            // notification-area icon callback
 
 // True when the taskbar uses the light theme (Settings > Personalization > Colors).
 inline bool LightTaskbar() {

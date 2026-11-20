@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -113,6 +114,7 @@ public:
             // The media service restarted, or the player quit or hung mid-call: start over on the next poll.
             m_manager = nullptr;
             m_session = nullptr;
+            m_playing.clear();
             Forget();
             next = {};
         }
@@ -134,16 +136,50 @@ public:
     }
 
 private:
-    // A playing session first; else the player shown before, so a pause does not jump to another
-    // app; else the one Windows considers current.
+    // A player that just started playing first, so the latest one takes over; else the player shown
+    // before while it plays; else any playing one; else the player shown before, so a pause does not
+    // jump to another app; else any. Among several candidates, the one Windows considers current wins.
+    // Players are told apart by app id, like m_app.
     GlobalSystemMediaTransportControlsSession PickSession() {
-        GlobalSystemMediaTransportControlsSession sticky{ nullptr };
+        auto current = m_manager.GetCurrentSession();
+        const std::wstring currentApp = current ? std::wstring{ current.SourceAppUserModelId() } : std::wstring{};
+        GlobalSystemMediaTransportControlsSession started{ nullptr }, playing{ nullptr }, shown{ nullptr }, any{ nullptr };
+        bool shownPlaying = false;
+        std::set<std::wstring> nowPlaying;
         for (auto const& s : m_manager.GetSessions()) {
+            std::wstring app{ s.SourceAppUserModelId() };
+            if (IsAnonymousHost(app)) continue;
             auto info = s.GetPlaybackInfo();
-            if (info && info.PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing) return s;
-            if (!sticky && !m_app.empty() && s.SourceAppUserModelId() == m_app) sticky = s;
+            const bool isPlaying =
+                info && info.PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
+            const bool isCurrent = app == currentApp;
+            if (isPlaying) {
+                if (!m_playing.contains(app)) Prefer(started, s, isCurrent);
+                Prefer(playing, s, isCurrent);
+                nowPlaying.insert(app);
+            }
+            if (!shown && !m_app.empty() && app == m_app) {
+                shown = s;
+                shownPlaying = isPlaying;
+            }
+            Prefer(any, s, isCurrent);
         }
-        return sticky ? sticky : m_manager.GetCurrentSession();
+        m_playing = std::move(nowPlaying);
+        if (started) return started;
+        if (shown && shownPlaying) return shown;
+        if (playing) return playing;
+        return shown ? shown : any;
+    }
+
+    static void Prefer(GlobalSystemMediaTransportControlsSession& slot, GlobalSystemMediaTransportControlsSession const& s,
+                       bool isCurrent) {
+        if (!slot || isCurrent) slot = s;
+    }
+
+    // WebView2 publishes sessions under its own name, not the app's: game launchers and other apps
+    // playing background sound. Nothing tells them apart from a player, so they are never shown.
+    static bool IsAnonymousHost(std::wstring const& app) {
+        return CompareStringOrdinal(app.c_str(), -1, L"msedgewebview2.exe", -1, TRUE) == CSTR_EQUAL;
     }
 
     void ReadSession(media::Snapshot& next) {
@@ -198,6 +234,7 @@ private:
     GlobalSystemMediaTransportControlsSession m_session{ nullptr };
     std::wstring m_app;     // SourceAppUserModelId of the player shown
     std::wstring m_artKey;  // the track m_art belongs to
+    std::set<std::wstring> m_playing;  // app ids of the players that were playing at the last poll
     int64_t m_start = 0;    // timeline StartTime of the player shown: seek positions are relative to it
     std::shared_ptr<Gdiplus::Bitmap> m_art;
 };

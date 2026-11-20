@@ -1,26 +1,19 @@
 // Taskbar Media Player: a media player strip on the Windows taskbar.
 // One hidden top-level window owns the app: it receives TaskbarCreated (Explorer restarted), the
-// widget's clicks, the notification-area icon and a one-second tick that keeps the widget in place.
+// widget's clicks and a one-second tick that keeps the widget in place. There is no notification-area
+// icon: the strip's menu, and the settings window (opened by starting the exe again while the strip
+// is hidden), offer everything.
 #include "app.h"
 #include "gdiplus_inc.h"
-#include "icons.h"
 #include "media.h"
 #include "settings.h"
 #include "settings_dialog.h"
 #include "widget.h"
 
-#include <shellapi.h>
-
-#include <string>
-
 namespace {
 
 constexpr UINT_PTR kTickTimer = 1;
 constexpr UINT kTickMs = 1000;
-constexpr UINT kTrayId = 1;
-constexpr wchar_t kRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-constexpr wchar_t kRunValue[] = L"TaskbarMediaPlayer";
-constexpr wchar_t kLegacyRunValue[] = L"MusicLounge";
 constexpr wchar_t kMutexName[] = L"Local\\TaskbarMediaPlayer";
 
 enum MenuId : UINT { IdPlayPause = 1, IdPrevious, IdNext, IdSettings, IdAutostart, IdExit };
@@ -30,47 +23,7 @@ HWND g_hwnd;
 UINT g_taskbarCreatedMsg;
 Settings g_settings;
 bool g_light;
-HICON g_trayIcon;
 int g_idleSeconds;  // seconds without playback, counted up to the idle timeout
-
-// ---- start with Windows -----------------------------------------------------------------------
-
-std::wstring ExePath() {
-    wchar_t p[MAX_PATH];
-    DWORD n = GetModuleFileNameW(nullptr, p, MAX_PATH);
-    return std::wstring(p, n);
-}
-
-std::wstring RunCommand() { return L"\"" + ExePath() + L"\""; }
-
-bool AutostartEnabled() {
-    wchar_t buf[MAX_PATH + 8];
-    DWORD size = sizeof(buf);
-    if (RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, buf, &size) != ERROR_SUCCESS) return false;
-    return _wcsicmp(buf, RunCommand().c_str()) == 0;
-}
-
-void SetAutostart(bool on) {
-    HKEY key;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
-    if (on) {
-        const std::wstring v = RunCommand();
-        RegSetValueExW(key, kRunValue, 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
-                       (DWORD)((v.size() + 1) * sizeof(wchar_t)));
-    } else {
-        RegDeleteValueW(key, kRunValue);
-    }
-    RegCloseKey(key);
-}
-
-// An autostart entry left by the old name (Music Lounge) is replaced by one for this exe.
-void MigrateLegacyAutostart() {
-    HKEY key;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
-    const bool had = RegDeleteValueW(key, kLegacyRunValue) == ERROR_SUCCESS;
-    RegCloseKey(key);
-    if (had) SetAutostart(true);
-}
 
 // ---- theme ------------------------------------------------------------------------------------
 
@@ -84,71 +37,6 @@ void ApplyMenuTheme(bool light) {
     static auto flush = ux ? reinterpret_cast<FlushMenuThemesFn>(GetProcAddress(ux, MAKEINTRESOURCEA(136))) : nullptr;
     if (setMode) setMode(light ? 3 : 2);  // ForceLight : ForceDark
     if (flush) flush();
-}
-
-// ---- notification-area icon -------------------------------------------------------------------
-
-// A music note, white or dark to match the taskbar.
-HICON RenderTrayIcon(bool light) {
-    const UINT dpi = GetDpiForSystem();
-    const int size = GetSystemMetricsForDpi(SM_CXSMICON, dpi);
-    Gdiplus::Bitmap bmp(size, size, PixelFormat32bppARGB);
-    {
-        Gdiplus::Graphics g(&bmp);
-        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-        g.Clear(Gdiplus::Color(0, 0, 0, 0));
-        Gdiplus::SolidBrush brush(light ? Gdiplus::Color(255, 28, 28, 28) : Gdiplus::Color(255, 255, 255, 255));
-        const Gdiplus::REAL half = (Gdiplus::REAL)size / 2;
-        icons::Fill(g, icons::Icon::Music, (Gdiplus::REAL)size * 1.1f, Gdiplus::PointF(half, half), brush);
-    }
-    HICON icon = nullptr;
-    bmp.GetHICON(&icon);
-    return icon;
-}
-
-NOTIFYICONDATAW TrayData(UINT flags) {
-    NOTIFYICONDATAW nid{ sizeof(nid) };
-    nid.hWnd = g_hwnd;
-    nid.uID = kTrayId;
-    nid.uFlags = flags;
-    return nid;
-}
-
-void SetTrayTip(const media::Snapshot& m) {
-    std::wstring tip = app::kName;
-    if (m.hasMedia && !m.title.empty()) tip = m.artist.empty() ? m.title : m.title + L" — " + m.artist;
-    NOTIFYICONDATAW nid = TrayData(NIF_TIP | NIF_SHOWTIP);
-    wcsncpy_s(nid.szTip, tip.c_str(), _TRUNCATE);
-    Shell_NotifyIconW(NIM_MODIFY, &nid);
-}
-
-void AddTrayIcon() {
-    if (g_trayIcon) DestroyIcon(g_trayIcon);
-    g_trayIcon = RenderTrayIcon(g_light);
-    NOTIFYICONDATAW nid = TrayData(NIF_ICON | NIF_TIP | NIF_MESSAGE | NIF_SHOWTIP);
-    nid.uCallbackMessage = app::WM_TRAY;
-    nid.hIcon = g_trayIcon;
-    wcsncpy_s(nid.szTip, app::kName, _TRUNCATE);
-    Shell_NotifyIconW(NIM_ADD, &nid);
-    nid.uVersion = NOTIFYICON_VERSION_4;
-    Shell_NotifyIconW(NIM_SETVERSION, &nid);
-    SetTrayTip(media::Current());
-}
-
-void UpdateTrayIcon() {
-    HICON old = g_trayIcon;
-    g_trayIcon = RenderTrayIcon(g_light);
-    NOTIFYICONDATAW nid = TrayData(NIF_ICON);
-    nid.hIcon = g_trayIcon;
-    Shell_NotifyIconW(NIM_MODIFY, &nid);
-    if (old) DestroyIcon(old);
-}
-
-void RemoveTrayIcon() {
-    NOTIFYICONDATAW nid = TrayData(0);
-    Shell_NotifyIconW(NIM_DELETE, &nid);
-    if (g_trayIcon) DestroyIcon(g_trayIcon);
-    g_trayIcon = nullptr;
 }
 
 // ---- app --------------------------------------------------------------------------------------
@@ -215,19 +103,15 @@ void ShowMenu() {
 }
 
 LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
-    if (msg == g_taskbarCreatedMsg && msg != 0) {  // Explorer restarted: the widget and the icon are gone
+    if (msg == g_taskbarCreatedMsg && msg != 0) {  // Explorer restarted: the widget is gone
         widget::Destroy();
-        AddTrayIcon();
         Tick();
         return 0;
     }
     switch (msg) {
-        case app::WM_MEDIA_CHANGED: {
-            const media::Snapshot m = media::Current();
-            widget::SetMedia(m);
-            SetTrayTip(m);
+        case app::WM_MEDIA_CHANGED:
+            widget::SetMedia(media::Current());
             return 0;
-        }
         case app::WM_SETTINGS_SAVED:
             g_settings = LoadSettings();
             g_idleSeconds = 0;
@@ -240,13 +124,6 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case app::WM_SHOW_SETTINGS:
             ShowSettings();
             return 0;
-        case app::WM_TRAY:
-            switch (LOWORD(lp)) {
-                case WM_CONTEXTMENU:
-                case NIN_SELECT:
-                case NIN_KEYSELECT: ShowMenu(); break;
-            }
-            return 0;
         case WM_TIMER:
             if (wp == kTickTimer) Tick();
             return 0;
@@ -257,7 +134,6 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                     g_light = light;
                     ApplyMenuTheme(light);
                     widget::SetLightTheme(light);
-                    UpdateTrayIcon();
                 }
             }
             return 0;
@@ -268,7 +144,6 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             KillTimer(h, kTickTimer);
             settings_dialog::Close();
             widget::Destroy();
-            RemoveTrayIcon();
             PostQuitMessage(0);
             return 0;
     }
@@ -331,7 +206,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
                              nullptr);
     if (g_hwnd) {
         media::Start(g_hwnd, app::WM_MEDIA_CHANGED);
-        AddTrayIcon();
         Tick();
         SetTimer(g_hwnd, kTickTimer, kTickMs, nullptr);
 

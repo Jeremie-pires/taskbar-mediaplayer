@@ -42,9 +42,15 @@ enum : int {
     IdSettingsButton,
     IdHideNoMedia,
     IdHideFullscreen,
+    IdAutostart,  // not part of Settings: written to the Run key at once
+    IdQuit = 130,
 };
 
 constexpr int kIdleChoices[] = { 0, 10, 30, 60, 300, 600, 1800, 3600 };  // seconds
+
+#define STR2(x) L## #x
+#define STR(x) STR2(x)
+constexpr wchar_t kVersion[] = L"Version " STR(APP_VERSION_MAJOR) L"." STR(APP_VERSION_MINOR) L"." STR(APP_VERSION_PATCH);
 
 struct Palette {
     COLORREF page, card, cardHot, control, controlHot, text, subtle, accent, onAccent;
@@ -68,6 +74,7 @@ struct Ctx {
     HBRUSH page = nullptr, field = nullptr;
     std::vector<std::pair<RECT, std::wstring>> headers;
     std::vector<Card> cards;
+    RECT version{};
 };
 
 HWND g_dlg;
@@ -255,8 +262,8 @@ LRESULT CustomDraw(const Ctx& c, const NMCUSTOMDRAW& cd) {
     const int id = (int)cd.hdr.idFrom;
     const bool hot = (cd.uItemState & CDIS_HOT) != 0;
     if (id >= IdSizeCompact && id <= IdSizeLarge) DrawSegment(cd.hdc, c, cd.hdr.hwndFrom, id - IdSizeCompact, cd.rc, hot);
-    else if (id >= IdArt && id <= IdHideFullscreen) DrawToggle(cd.hdc, c, cd.hdr.hwndFrom, cd.rc, hot);
-    else if (id == IDCANCEL) DrawPushButton(cd.hdc, c, cd.hdr.hwndFrom, cd.rc, hot, (cd.uItemState & CDIS_SELECTED) != 0);
+    else if (id >= IdArt && id <= IdAutostart) DrawToggle(cd.hdc, c, cd.hdr.hwndFrom, cd.rc, hot);
+    else if (id == IDCANCEL || id == IdQuit) DrawPushButton(cd.hdc, c, cd.hdr.hwndFrom, cd.rc, hot, (cd.uItemState & CDIS_SELECTED) != 0);
     else return CDRF_DODEFAULT;
     return CDRF_SKIPDEFAULT;
 }
@@ -403,6 +410,8 @@ int Build(HWND w, Ctx& c) {
     SelectValue(idle, s.idleTimeout);
     toggle(left, IdHideNoMedia, L"Quand rien ne joue", s.hideWhenNoMedia);
     toggle(left, IdHideFullscreen, L"Pendant un plein écran", s.hideFullscreen);
+    header(left, L"Démarrage");
+    toggle(left, IdAutostart, L"Démarrer avec Windows", AutostartEnabled());
 
     header(right, L"Contenu");
     toggle(right, IdArt, L"Pochette d'album", s.showAlbumArt);
@@ -415,8 +424,12 @@ int Build(HWND w, Ctx& c) {
     toggle(right, IdSettingsButton, L"Paramètres", s.showSettings);
 
     const int y = std::max(left.y, right.y) - kRowGap + 16;
+    // Quitting lives here too: with the strip hidden, this window is the only way in.
+    add(WC_BUTTONW, L"Quitter", WS_TABSTOP | WS_GROUP | BS_PUSHBUTTON, Scaled(c, kMargin, y, kButtonW, kButtonH), IdQuit);
     add(WC_BUTTONW, L"Fermer", WS_TABSTOP | WS_GROUP | BS_PUSHBUTTON,
         Scaled(c, kMargin + 2 * kColW + kGutter - kButtonW, y, kButtonW, kButtonH), IDCANCEL);
+    // Shown for bug reports, between the two buttons.
+    c.version = Scaled(c, kMargin + kButtonW, y, 2 * kColW + kGutter - 2 * kButtonW, kButtonH);
     UpdateEnabled(w, c);
     return y + kButtonH + kMargin;
 }
@@ -451,6 +464,7 @@ void Paint(HWND w, const Ctx& c) {
         const RECT r{ card.rect.left + S(c, kPadX), card.rect.top, card.rect.right - S(c, kPadX + kComboW + 8), card.rect.bottom };
         DrawLabel(dc, c, card.label, r, enabled ? c.pal.text : Mix(c.pal.card, c.pal.text, 0.45f), DT_LEFT);
     }
+    DrawLabel(dc, c, kVersion, c.version, c.pal.subtle, DT_CENTER);
     EndPaint(w, &ps);
 }
 
@@ -470,6 +484,8 @@ LRESULT CALLBACK DialogProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             if (!c) break;
             const int id = LOWORD(wp);
             if (id == IDOK || id == IDCANCEL) DestroyWindow(w);
+            else if (id == IdQuit) PostMessageW(c->owner, WM_CLOSE, 0, 0);  // the app's exit closes this window
+            else if (id == IdAutostart) SetAutostart(IsDlgButtonChecked(w, IdAutostart) == BST_CHECKED);
             else if ((HIWORD(wp) == BN_CLICKED && id != IdTheme && id != IdFont && id != IdIdle) || HIWORD(wp) == CBN_SELCHANGE)
                 Changed(w, *c);
             return 0;

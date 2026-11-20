@@ -14,11 +14,11 @@ Media player strip on the Windows taskbar (artwork, title, artist, previous / pl
 - No lint config and no automated tests yet. Warnings are `/W4`: keep the build warning-free (CI builds with warnings as errors).
 
 ## Layout
-- `src/main.cpp`: hidden owner window, 1 s tick, tray icon, menu, autostart, `TaskbarCreated`, `--quit`.
+- `src/main.cpp`: hidden owner window, 1 s tick, menu, `TaskbarCreated`, `--quit`.
 - `src/widget.cpp`: the strip, a layered child of `Shell_TrayWnd`, drawn with GDI+, placed left of `TrayNotifyWnd`.
 - `src/icons.cpp`: Phosphor "fill" icons kept as SVG path data, parsed into GDI+ paths (license in `THIRD-PARTY-NOTICES.md`).
 - `src/media.cpp`: GSMTC polling and commands on a dedicated MTA thread.
-- `src/settings.cpp`, `src/settings_dialog.cpp`: registry settings (`HKCU\Software\TaskbarMediaPlayer`, migrated once from the old `Software\MusicLounge` key) and the settings window.
+- `src/settings.cpp`, `src/settings_dialog.cpp`: registry settings (`HKCU\Software\TaskbarMediaPlayer`, migrated once from the old `Software\MusicLounge` key), autostart, and the settings window.
 - `res/`: manifest (PerMonitorV2, asInvoker) and version resource.
 - `legacy/`: old 1.x DeskBand DLL, reference only, not built.
 
