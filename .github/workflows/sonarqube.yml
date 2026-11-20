@@ -1,0 +1,65 @@
+name: SonarQube
+
+# CI-based SonarQube Cloud analysis. Automatic analysis must be turned off in the SonarQube Cloud
+# project (Administration > Analysis Method), or this scan fails.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarqube-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      id-token: write  # sonarqube-auth-action signs in with OIDC: no token stored in the repository
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0  # full history, for blame and new-code detection
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # C++ is analyzed from the compile commands Build Wrapper records during a real build.
+      - name: Install Build Wrapper
+        id: build-wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build under Build Wrapper
+        run: >
+          & "${{ steps.build-wrapper.outputs.build-wrapper-binary }}" --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
+          cmake --build build --config Release
+
+      - name: Authenticate
+        id: auth
+        uses: SonarSource/sonarqube-auth-action@b372e2c2930aadfcc4f4399446da1e12772709ad # v1.2
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+        with:
+          args: >
+            -Dsonar.organization=${{ steps.auth.outputs.organization }}
+            -Dsonar.projectKey=${{ steps.auth.outputs.project-key }}
+            -Dsonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
+            -Dsonar.exclusions=legacy/**

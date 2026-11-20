@@ -29,7 +29,7 @@ Version 2.1.0 is released: player selection by latest start, WebView2 sessions i
 
 ## Decisions
 - 2026-11-19 Releases come from a `vX.Y.Z` tag that must match `CMakeLists.txt`; single `main` branch — small project, one version source.
-- 2026-11-19 SonarQube Cloud automatic analysis, not a CI job — no token to manage; slightly less precise for C++, enough for this size.
+- 2026-11-20 SonarQube Cloud analysis runs in CI (`sonarqube.yml`, Build Wrapper, OIDC sign-in), replacing automatic analysis — real compile commands give a precise C++ analysis, and OIDC still needs no stored token.
 - 2026-11-19 No forced CMake generator — GitHub's Windows runners moved to Visual Studio 2026, and local builds use 2022.
 - 2026-11-20 The most recently started player wins — the playing order Windows reports is registration order, not activity.
 - 2026-11-20 `msedgewebview2.exe` sessions are ignored, with no option — they do not name the app behind them and carry normal metadata, so nothing else can filter them.
